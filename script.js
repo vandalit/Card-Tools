@@ -1128,6 +1128,148 @@ class ResourceManager {
         
         // Show modal
         document.getElementById('cardDetailModal').classList.add('active');
+        
+        // Setup parallax effects
+        this.setupMouseParallax();
+    }
+
+    hideDetailModal() {
+        document.getElementById('cardDetailModal').classList.remove('active');
+        this.cleanupMouseParallax();
+        this.currentDetailCard = null;
+    }
+
+    // Mouse Parallax Effects for Card Detail (Ana Cards style)
+    setupMouseParallax() {
+        const modal = document.getElementById('cardDetailModal');
+        if (!modal || !modal.classList.contains('active')) return;
+        
+        // Clean up any existing handlers first
+        this.cleanupMouseParallax();
+        
+        let ticking = false;
+        
+        const updateMouseParallax = (e) => {
+            const cardContainer = modal.querySelector('.detail-card-container');
+            const parallaxBg = modal.querySelector('.detail-parallax-bg');
+            const categoryBadge = modal.querySelector('.detail-category-badge');
+            const title = modal.querySelector('.detail-title');
+            
+            if (!cardContainer) return;
+            
+            const rect = cardContainer.getBoundingClientRect();
+            const cardCenterX = rect.left + rect.width / 2;
+            const cardCenterY = rect.top + rect.height / 2;
+            
+            // Calculate mouse position relative to card center (-1 to 1)
+            const mouseXPercent = (e.clientX - cardCenterX) / (rect.width / 2);
+            const mouseYPercent = (e.clientY - cardCenterY) / (rect.height / 2);
+            
+            // Clamp values to prevent extreme movements
+            const clampedX = Math.max(-1, Math.min(1, mouseXPercent));
+            const clampedY = Math.max(-1, Math.min(1, mouseYPercent));
+            
+            // Card container - subtle movement with 3D rotation
+            const cardMoveX = clampedX * 12;
+            const cardMoveY = clampedY * 12;
+            const cardRotateX = clampedY * -5;
+            const cardRotateY = clampedX * 5;
+            
+            cardContainer.style.transform = `translateX(${cardMoveX}px) translateY(${cardMoveY}px) rotateX(${cardRotateX}deg) rotateY(${cardRotateY}deg)`;
+            
+            // Background - opposite direction, more movement
+            if (parallaxBg) {
+                const bgMoveX = clampedX * -20;
+                const bgMoveY = clampedY * -20;
+                const bgScale = 1 + (Math.abs(clampedX) + Math.abs(clampedY)) * 0.03;
+                
+                parallaxBg.style.transform = `translateX(${bgMoveX}px) translateY(${bgMoveY}px) scale(${bgScale})`;
+            }
+            
+            // Category badge - floating effect
+            if (categoryBadge) {
+                const badgeMoveX = clampedX * 8;
+                const badgeMoveY = clampedY * 8;
+                categoryBadge.style.transform = `translateX(${badgeMoveX}px) translateY(${badgeMoveY}px)`;
+            }
+            
+            // Title - subtle floating
+            if (title) {
+                const titleMoveX = clampedX * 5;
+                const titleMoveY = clampedY * 5;
+                title.style.transform = `translateX(${titleMoveX}px) translateY(${titleMoveY}px)`;
+            }
+            
+            ticking = false;
+        };
+        
+        // Mouse move handler with throttling
+        const handleMouseMove = (e) => {
+            if (!ticking) {
+                requestAnimationFrame(() => updateMouseParallax(e));
+                ticking = true;
+            }
+        };
+        
+        // Mouse leave handler - reset positions
+        const handleMouseLeave = () => {
+            const cardContainer = modal.querySelector('.detail-card-container');
+            const parallaxBg = modal.querySelector('.detail-parallax-bg');
+            const categoryBadge = modal.querySelector('.detail-category-badge');
+            const title = modal.querySelector('.detail-title');
+            
+            // Smooth return to center
+            if (cardContainer) {
+                cardContainer.style.transition = 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
+                cardContainer.style.transform = 'translateX(0) translateY(0) rotateX(0) rotateY(0)';
+            }
+            
+            if (parallaxBg) {
+                parallaxBg.style.transition = 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
+                parallaxBg.style.transform = 'translateX(0) translateY(0) scale(1)';
+            }
+            
+            if (categoryBadge) {
+                categoryBadge.style.transition = 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
+                categoryBadge.style.transform = 'translateX(0) translateY(0)';
+            }
+            
+            if (title) {
+                title.style.transition = 'transform 0.6s cubic-bezier(0.23, 1, 0.32, 1)';
+                title.style.transform = 'translateX(0) translateY(0)';
+            }
+            
+            // Clear transitions after animation
+            setTimeout(() => {
+                if (cardContainer) cardContainer.style.transition = '';
+                if (parallaxBg) parallaxBg.style.transition = '';
+                if (categoryBadge) categoryBadge.style.transition = '';
+                if (title) title.style.transition = '';
+            }, 600);
+        };
+        
+        // Add event listeners to the modal container
+        modal.addEventListener('mousemove', handleMouseMove);
+        modal.addEventListener('mouseleave', handleMouseLeave);
+        
+        // Store handlers for cleanup
+        this.mouseParallaxHandlers = {
+            modal: modal,
+            mousemove: handleMouseMove,
+            mouseleave: handleMouseLeave
+        };
+    }
+
+    // Cleanup parallax handlers
+    cleanupMouseParallax() {
+        if (this.mouseParallaxHandlers) {
+            const { modal, mousemove, mouseleave } = this.mouseParallaxHandlers;
+            if (modal) {
+                modal.removeEventListener('mousemove', mousemove);
+                modal.removeEventListener('mouseleave', mouseleave);
+            }
+            this.mouseParallaxHandlers = null;
+        }
     }
 }
 
