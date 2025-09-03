@@ -1,0 +1,161 @@
+{
+  "decks": [
+    {
+      "id": "recursos-generales-default",
+      "name": "Recursos Generales",
+      "description": "Recursos principales para desarrollo y diseño",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "order": 0,
+      "layout": "horizontal",
+      "cards": []
+    },
+    {
+      "id": "demo-deck-001",
+      "name": "Frameworks & Librerías",
+      "description": "Frameworks y librerías populares para desarrollo",
+      "layout": "column",
+      "order": 1,
+      "cards": [
+        {
+          "id": "demo-card-001",
+          "title": "React",
+          "category": "desarrollo",
+          "description": "Biblioteca de JavaScript para construir interfaces de usuario",
+          "notes": "Desarrollado por Facebook, ideal para aplicaciones SPA y componentes reutilizables.",
+          "hashtags": ["react", "javascript", "frontend", "spa"],
+          "mainUrl": "https://reactjs.org",
+          "coverImage": "https://www.google.com/s2/favicons?domain=reactjs.org&sz=128",
+          "urls": [
+            { "description": "Documentación", "url": "https://reactjs.org/docs", "bookmark": true, "like": false },
+            { "description": "GitHub", "url": "https://github.com/facebook/react", "bookmark": false, "like": true },
+            { "description": "Tutorial", "url": "https://reactjs.org/tutorial", "bookmark": true, "like": false }
+          ],
+          "favorite": true,
+          "createdAt": "2025-09-03T23:23:00.000Z"
+        },
+        {
+          "id": "demo-card-002",
+          "title": "Tailwind CSS",
+          "category": "diseño",
+          "description": "Framework CSS utility-first para desarrollo rápido de interfaces",
+          "notes": "Excelente para prototipado rápido y diseños consistentes. Muy customizable.",
+          "hashtags": ["tailwind", "css", "frontend", "utility"],
+          "mainUrl": "https://tailwindcss.com",
+          "coverImage": "https://www.google.com/s2/favicons?domain=tailwindcss.com&sz=128",
+          "urls": [
+            { "description": "Documentación", "url": "https://tailwindcss.com/docs", "bookmark": true, "like": true },
+            { "description": "Playground", "url": "https://play.tailwindcss.com", "bookmark": true, "like": false },
+            { "description": "Components", "url": "https://tailwindui.com", "bookmark": false, "like": true }
+          ],
+          "favorite": true,
+          "createdAt": "2025-09-03T23:24:00.000Z"
+        },
+        {
+          "id": "demo-card-003",
+          "title": "Bootstrap",
+          "category": "diseño",
+          "description": "Framework CSS más popular del mundo para crear sitios responsive",
+          "notes": "Ideal para desarrollo rápido con componentes predefinidos y sistema de grid.",
+          "hashtags": ["bootstrap", "css", "responsive", "components"],
+          "mainUrl": "https://getbootstrap.com",
+          "coverImage": "https://www.google.com/s2/favicons?domain=getbootstrap.com&sz=128",
+          "urls": [
+            { "description": "Documentación", "url": "https://getbootstrap.com/docs", "bookmark": true, "like": false },
+            { "description": "Examples", "url": "https://getbootstrap.com/docs/5.3/examples/", "bookmark": false, "like": true }
+          ],
+          "favorite": false,
+          "createdAt": "2025-09-03T23:25:00.000Z"
+        }
+      ],
+      "createdAt": "2025-09-03T23:23:00.000Z"
+    },
+    {
+      "id": "demo-deck-002",
+      "name": "Herramientas de Diseño",
+      "description": "Herramientas esenciales para diseñadores y desarrolladores",
+      "layout": "column",
+      "order": 2,
+      "cards": [
+        {
+          "id": "demo-card-004",
+          "title": "Figma",
+          "category": "diseño",
+          "description": "Herramienta de diseño colaborativo basada en la web",
+          "notes": "Ideal para diseño de interfaces, prototipado y colaboración en equipo.",
+          "hashtags": ["figma", "design", "ui", "prototyping"],
+          "mainUrl": "https://figma.com",
+          "coverImage": "https://www.google.com/s2/favicons?domain=figma.com&sz=128",
+          "urls": [
+            { "description": "Web App", "url": "https://figma.com", "bookmark": true, "like": true },
+            { "description": "Community", "url": "https://figma.com/community", "bookmark": true, "like": false },
+            { "description": "Plugins", "url": "https://figma.com/community/plugins", "bookmark": false, "like": true }
+          ],
+          "favorite": true,
+          "createdAt": "2025-09-03T23:26:00.000Z"
+        },
+        {
+          "id": "demo-card-005",
+          "title": "Font Awesome",
+          "category": "recursos",
+          "description": "Biblioteca de iconos vectoriales y herramientas de estilo",
+          "notes": "Amplia colección de iconos para web. Versión gratuita y premium disponibles.",
+          "hashtags": ["fontawesome", "icons", "css", "fonts"],
+          "mainUrl": "https://fontawesome.com",
+          "coverImage": "https://www.google.com/s2/favicons?domain=fontawesome.com&sz=128",
+          "urls": [
+            { "description": "Iconos", "url": "https://fontawesome.com/icons", "bookmark": true, "like": true },
+            { "description": "CDN", "url": "https://cdnjs.com/libraries/font-awesome", "bookmark": true, "like": false },
+            { "description": "Documentación", "url": "https://fontawesome.com/docs", "bookmark": false, "like": false }
+          ],
+          "favorite": false,
+          "createdAt": "2025-09-03T23:27:00.000Z"
+        }
+      ],
+      "createdAt": "2025-09-03T23:26:00.000Z"
+    },
+    {
+      "id": "demo-deck-003",
+      "name": "APIs & Servicios",
+      "description": "APIs útiles y servicios para desarrollo",
+      "layout": "column",
+      "order": 3,
+      "cards": [
+        {
+          "id": "demo-card-006",
+          "title": "JSONPlaceholder",
+          "category": "apis",
+          "description": "API REST falsa para testing y prototipado",
+          "notes": "Perfecto para hacer pruebas sin necesidad de configurar un backend.",
+          "hashtags": ["api", "testing", "json", "rest"],
+          "mainUrl": "https://jsonplaceholder.typicode.com",
+          "coverImage": "https://www.google.com/s2/favicons?domain=jsonplaceholder.typicode.com&sz=128",
+          "urls": [
+            { "description": "API Docs", "url": "https://jsonplaceholder.typicode.com/guide/", "bookmark": true, "like": true },
+            { "description": "GitHub", "url": "https://github.com/typicode/jsonplaceholder", "bookmark": false, "like": false }
+          ],
+          "favorite": true,
+          "createdAt": "2025-09-03T23:28:00.000Z"
+        },
+        {
+          "id": "demo-card-007",
+          "title": "Netlify",
+          "category": "hosting",
+          "description": "Plataforma de hosting para sitios web estáticos y JAMstack",
+          "notes": "Deployment automático desde Git, funciones serverless y CDN global.",
+          "hashtags": ["hosting", "jamstack", "deployment", "cdn"],
+          "mainUrl": "https://netlify.com",
+          "coverImage": "https://www.google.com/s2/favicons?domain=netlify.com&sz=128",
+          "urls": [
+            { "description": "Dashboard", "url": "https://app.netlify.com", "bookmark": true, "like": true },
+            { "description": "Docs", "url": "https://docs.netlify.com", "bookmark": true, "like": false }
+          ],
+          "favorite": false,
+          "createdAt": "2025-09-03T23:29:00.000Z"
+        }
+      ],
+      "createdAt": "2025-09-03T23:28:00.000Z"
+    }
+  ],
+  "lastModified": "2025-09-03T23:30:00.000Z",
+  "version": "1.0.0"
+}

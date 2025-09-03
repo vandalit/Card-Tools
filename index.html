@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Tools - Developer Resources</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-tools"></i> Card Tools</h1>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="app.toggleFavoriteFilter()" title="Mostrar solo favoritos" id="favoriteFilterBtn">
+                        <i class="fas fa-star"></i>
+                    </button>
+                    <button class="btn btn-secondary" onclick="app.toggleViewMode()" title="Vista simplificada" id="viewModeBtn">
+                        <i class="fas fa-list"></i>
+                    </button>
+                    <button class="btn btn-primary" id="createDeckBtn">
+                        <i class="fas fa-plus"></i> Crear Deck
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-secondary dropdown-toggle" id="dataMenuBtn">
+                            <i class="fas fa-database"></i> Datos
+                            <span class="storage-chip" id="storageChip">Web</span>
+                        </button>
+                        <div class="data-menu-content">
+                            <button id="exportBtn" class="data-btn">
+                                <i class="fas fa-download"></i>
+                                Exportar CSV
+                            </button>
+                            <button id="importBtn" class="data-btn">
+                                <i class="fas fa-upload"></i>
+                                Importar CSV
+                            </button>
+                            <button id="backupBtn" class="data-btn">
+                                <i class="fas fa-save"></i>
+                                Crear Backup
+                            </button>
+                            <button id="clearDataBtn" class="data-btn danger">
+                                <i class="fas fa-trash"></i>
+                                Limpiar Datos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Filters -->
+        <div class="filters-section">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Buscar recursos, bibliotecas, frameworks...">
+            </div>
+            <div class="filter-tags">
+                <div class="tag-group">
+                    <label>Categorías:</label>
+                    <div id="categoryFilters" class="tag-container"></div>
+                </div>
+                <div class="tag-group">
+                    <label>Tecnologías:</label>
+                    <div id="hashtagFilters" class="tag-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="decks-container" id="decksContainer">
+                <!-- Decks will be dynamically generated here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Create/Edit Deck Modal -->
+    <div class="modal" id="deckModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="deckModalTitle">Crear Nuevo Deck</h3>
+                <button class="close-btn" id="closeDeckModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="deckForm">
+                <div class="form-group">
+                    <label for="deckName">Nombre del Deck:</label>
+                    <input type="text" id="deckName" required>
+                </div>
+                <div class="form-group">
+                    <label for="deckDescription">Descripción:</label>
+                    <textarea id="deckDescription" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelDeckBtn">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create/Edit Resource Modal -->
+    <div class="modal" id="cardModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="cardModalTitle">Crear Nuevo Recurso</h3>
+                <button class="close-btn" id="closeCardModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="cardForm">
+                <div class="form-group">
+                    <label for="cardTitle">Nombre del Recurso:</label>
+                    <input type="text" id="cardTitle" required>
+                </div>
+                <div class="form-group">
+                    <label for="cardMainUrl">URL Principal:</label>
+                    <input type="url" id="cardMainUrl" placeholder="https://ejemplo.com" required>
+                    <small>Se utilizará para obtener automáticamente el logo/favicon</small>
+                </div>
+                <div class="form-group">
+                    <label for="cardCategory">Categoría:</label>
+                    <select id="cardCategory" required>
+                        <option value="">Seleccionar categoría</option>
+                        <option value="diseño">Diseño</option>
+                        <option value="desarrollo">Desarrollo</option>
+                        <option value="ui-ux">UI/UX</option>
+                        <option value="herramientas">Herramientas</option>
+                        <option value="recursos">Recursos</option>
+                        <option value="apis">APIs</option>
+                        <option value="hosting">Hosting</option>
+                        <option value="documentacion">Documentación</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="cardDescription">Descripción:</label>
+                    <textarea id="cardDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="cardNotes">Notas de Uso:</label>
+                    <textarea id="cardNotes" rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="cardHashtags">Tecnologías/Tags:</label>
+                    <input type="text" id="cardHashtags" placeholder="#react #angular #css #javascript">
+                </div>
+                <div class="form-group">
+                    <label for="cardUrls">URLs Adicionales (una por línea):</label>
+                    <textarea id="cardUrls" rows="4" placeholder="Documentación: https://docs.ejemplo.com&#10;GitHub: https://github.com/ejemplo&#10;Tutorial: https://tutorial.ejemplo.com"></textarea>
+                    <small>Formato: Descripción: URL</small>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="cardFavorite"> 
+                        <i class="fas fa-star"></i> Marcar como favorito
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelCardBtn">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Resource Detail View Modal -->
+    <div class="modal detail-modal" id="cardDetailModal">
+        <div class="detail-card-container">
+            <div class="detail-card">
+                <!-- Parallax Background Layer -->
+                <div class="detail-parallax-bg" id="detailParallaxBg"></div>
+                
+                <!-- Card Header -->
+                <div class="detail-card-header">
+                    <div class="detail-category-badge" id="detailCategory"></div>
+                    <div class="detail-favorite-star" id="detailFavorite">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <button class="detail-close-btn" id="closeDetailModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <!-- Card Content -->
+                <div class="detail-card-content">
+                    <!-- Title Section -->
+                    <div class="detail-title-section">
+                        <h1 class="detail-title" id="detailTitle"></h1>
+                        <div class="detail-meta">
+                            <div class="detail-date-info">
+                                <span class="detail-date" id="detailDate"></span>
+                                <div class="detail-source-indicator" id="detailSourceIndicator"></div>
+                            </div>
+                            <div class="detail-actions">
+                                <button class="detail-action-btn" id="editDetailBtn" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="detail-action-btn" id="deleteDetailBtn" title="Eliminar">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Scrollable Content Area -->
+                    <div class="detail-scroll-area">
+                        <!-- Main URL -->
+                        <div class="detail-field" id="detailMainUrlField">
+                            <div class="detail-field-label">
+                                <i class="fas fa-link"></i>
+                                <span>URL Principal</span>
+                            </div>
+                            <div class="detail-field-content">
+                                <a id="detailMainUrl" href="#" target="_blank" rel="noopener"></a>
+                            </div>
+                        </div>
+                        
+                        <!-- Description -->
+                        <div class="detail-field" id="detailDescriptionField">
+                            <div class="detail-field-label">
+                                <i class="fas fa-align-left"></i>
+                                <span>Descripción</span>
+                            </div>
+                            <div class="detail-field-content" id="detailDescription"></div>
+                        </div>
+                        
+                        <!-- Notes -->
+                        <div class="detail-field" id="detailNotesField">
+                            <div class="detail-field-label">
+                                <i class="fas fa-sticky-note"></i>
+                                <span>Notas de Uso</span>
+                            </div>
+                            <div class="detail-field-content" id="detailNotes"></div>
+                        </div>
+                        
+                        <!-- Technologies -->
+                        <div class="detail-field" id="detailHashtagsField">
+                            <div class="detail-field-label">
+                                <i class="fas fa-hashtag"></i>
+                                <span>Tecnologías</span>
+                            </div>
+                            <div class="detail-hashtags" id="detailHashtags"></div>
+                        </div>
+                        
+                        <!-- Additional URLs -->
+                        <div class="detail-field" id="detailUrlsField">
+                            <div class="detail-field-label">
+                                <i class="fas fa-external-link-alt"></i>
+                                <span>Enlaces Adicionales</span>
+                            </div>
+                            <div class="detail-urls" id="detailUrls"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup Instructions Modal -->
+    <div class="modal" id="backupModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="backupModalTitle">📦 Backup Creado Exitosamente</h3>
+                <button class="close-btn" id="closeBackupModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="backup-instructions">
+                <div class="backup-success">
+                    <i class="fas fa-check-circle"></i>
+                    <p>Tu archivo <code>vault.json</code> ha sido descargado con todos los recursos actualizados.</p>
+                </div>
+                
+                <div class="backup-steps">
+                    <h4>📋 Instrucciones para Versión Local:</h4>
+                    <ol>
+                        <li>Descarga el proyecto desde el repositorio</li>
+                        <li>Reemplaza el archivo <code>vault.json</code> en el directorio raíz del proyecto</li>
+                        <li>Actualiza tu navegador para ver los cambios</li>
+                    </ol>
+                </div>
+                
+                <div class="backup-note">
+                    <i class="fas fa-info-circle"></i>
+                    <p><strong>Nota:</strong> Este backup incluye todas las modificaciones realizadas desde localStorage.</p>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" id="confirmBackupBtn">
+                        <i class="fas fa-thumbs-up"></i> Entiendo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Input for Import -->
+    <input type="file" id="fileInput" accept=".csv" style="display: none;">
+
+    <script src="script.js"></script>
+</body>
+</html>
