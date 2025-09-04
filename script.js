@@ -1,120 +1,119 @@
 class ResourceManager {
     constructor() {
-        this.decks = [];
-        this.allCategories = new Set();
-        this.allHashtags = new Set();
-        this.currentSearchQuery = '';
         this.currentDeck = null;
         this.currentCard = null;
-        this.showOnlyFavorites = false;
-        this.isSimplifiedView = false;
-        this.isLocalEnvironment = false;
         
         this.init();
     }
 
     async init() {
-        this.detectEnvironment();
-        await this.loadData();
+        // Initialize modules
+        this.dataManager = new DataManager();
+        this.uiManager = new UIManager(this.dataManager);
+        this.imageScraper = new ImageScraper();
+        this.loadingManager = new LoadingManager(this.uiManager, this.dataManager, this.imageScraper);
+        
+        // Detect environment
+        this.dataManager.detectEnvironment();
+        
+        // Bind events
         this.bindEvents();
-        this.render();
-        this.updateFilters();
+        
+        // Start loading sequence
+        await this.loadingManager.initializeApp();
     }
 
-    detectEnvironment() {
-        this.isLocal = window.location.protocol === 'file:' || 
-                      window.location.hostname === 'localhost' || 
-                      window.location.hostname === '127.0.0.1';
-        
-        this.isGitHubPages = window.location.hostname.includes('github.io');
-        
-        if (this.isGitHubPages) {
-            this.storageMode = 'web';
-        } else if (this.isLocal) {
-            this.storageMode = 'local';
-        } else {
-            this.storageMode = 'web';
+    // Event binding
+    bindEvents() {
+        // Search functionality
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.dataManager.setSearchQuery(e.target.value);
+                this.uiManager.render();
+            });
         }
-        
-        this.updateStorageUI();
-    }
-    
-    updateStorageUI() {
-        const storageChip = document.getElementById('storageChip');
-        
-        if (storageChip) {
-            if (this.isGitHubPages) {
-                storageChip.textContent = 'Web';
-                storageChip.className = 'storage-chip web';
-            } else if (this.isLocal) {
-                storageChip.textContent = 'Local';
-                storageChip.className = 'storage-chip local';
-            }
+
+        // Favorites filter
+        const favoritesBtn = document.getElementById('favoritesBtn');
+        if (favoritesBtn) {
+            favoritesBtn.addEventListener('click', () => {
+                this.dataManager.toggleFavoritesFilter();
+                this.uiManager.render();
+                favoritesBtn.classList.toggle('active', this.dataManager.showOnlyFavorites);
+            });
+        }
+
+        // View mode toggle
+        const viewModeBtn = document.getElementById('viewModeBtn');
+        if (viewModeBtn) {
+            viewModeBtn.addEventListener('click', () => {
+                this.uiManager.toggleSimplifiedView();
+            });
+        }
+
+        // Add deck button
+        const addDeckBtn = document.getElementById('addDeckBtn');
+        if (addDeckBtn) {
+            addDeckBtn.addEventListener('click', () => this.showDeckModal());
         }
     }
 
-    // Data Loading
-    async loadData() {
-        try {
-            // Try to load from vault.json first
-            const response = await fetch('./vault.json');
-            if (response.ok) {
-                const vaultData = await response.json();
-                this.decks = vaultData.decks || [];
-                console.log('Data loaded from vault.json');
-                
-                // Update images for existing cards
-                await this.updateExistingCardImages();
-            } else {
-                throw new Error('vault.json not found');
-            }
-        } catch (error) {
-            console.log('Loading from localStorage...');
-            const savedData = localStorage.getItem('cardtools-data');
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                this.decks = data.decks || [];
-                // Update images for existing cards from localStorage too
-                await this.updateExistingCardImages();
-            } else {
-                this.initializeDefaultData();
-            }
-        }
-        
-        this.updateCategoriesAndHashtags();
+
+    // Legacy methods that need to be removed/redirected
+    render() {
+        this.uiManager.render();
     }
 
-    // Update cover images for existing cards using new scraping system
-    async updateExistingCardImages() {
-        console.log('🔄 [UPDATE] Updating existing card images...');
-        let updated = false;
-        
-        for (const deck of this.decks) {
-            for (const card of deck.cards) {
-                // Only update if using Google favicon service (old system)
-                if (card.coverImage && card.coverImage.includes('google.com/s2/favicons')) {
-                    console.log(`🔄 [UPDATE] Updating image for card: ${card.title}`);
-                    const newImage = await this.fetchResourceLogo(card.mainUrl);
-                    if (newImage && newImage !== card.coverImage) {
-                        // Validate the new image before using it
-                        const isValid = await this.validateImageUrl(newImage);
-                        if (isValid) {
-                            card.coverImage = newImage;
-                            updated = true;
-                            console.log(`✅ [UPDATE] Updated ${card.title}: ${newImage}`);
-                        } else {
-                            console.log(`❌ [UPDATE] New image is broken for ${card.title}, keeping old one`);
-                        }
-                    }
-                }
-            }
+    saveData() {
+        this.dataManager.saveData();
+    }
+
+    // Remove all remaining this.decks references - these should use dataManager
+    deleteDeck(deckId) {
+        this.dataManager.deleteDeck(deckId);
+        this.uiManager.render();
+    }
+
+    addCard(deckId, cardData) {
+        this.dataManager.addCard(deckId, cardData);
+        this.uiManager.render();
+    }
+
+    updateCard(cardData) {
+        this.dataManager.updateCard(cardData.id, cardData);
+        this.uiManager.render();
+    }
+
+    editCard(cardId) {
+        const card = this.dataManager.findCard(cardId);
+        if (!card) {
+            alert('Card no encontrada');
+            return;
         }
         
-        if (updated) {
-            console.log('💾 [UPDATE] Saving updated images...');
-            this.saveData();
+        this.currentEditingCard = card;
+        
+        // Find the deck containing this card
+        const decks = this.dataManager.getDecks();
+        const deck = decks.find(d => d.cards?.some(c => c.id === cardId));
+        
+        this.showCardModal(deck?.id);
+    }
+
+    deleteCard(cardId) {
+        const card = this.dataManager.findCard(cardId);
+        if (!card) {
+            alert('Card no encontrada');
+            return;
+        }
+        
+        if (confirm(`¿Estás seguro de que quieres eliminar "${card.title}"?`)) {
+            this.dataManager.deleteCard(cardId);
+            this.uiManager.render();
         }
     }
+
 
     initializeDefaultData() {
         this.decks = [
@@ -198,52 +197,6 @@ class ResourceManager {
         ];
         
         this.saveData();
-    }
-
-    saveData() {
-        try {
-            const dataToSave = {
-                decks: this.decks,
-                lastModified: new Date().toISOString(),
-                version: '1.0.0'
-            };
-            
-            if (this.storageMode === 'web') {
-                const dataString = JSON.stringify(dataToSave);
-                
-                // Check if localStorage has enough space
-                try {
-                    localStorage.setItem('cardtools-data', dataString);
-                } catch (quotaError) {
-                    console.error('LocalStorage quota exceeded:', quotaError);
-                    alert('Espacio de almacenamiento lleno. Considera exportar y limpiar datos antiguos.');
-                    return false;
-                }
-            }
-            return true;
-        } catch (error) {
-            console.error('Error saving data:', error);
-            alert('Error al guardar los datos. Los cambios pueden perderse.');
-            return false;
-        }
-    }
-
-    updateCategoriesAndHashtags() {
-        this.allCategories.clear();
-        this.allHashtags.clear();
-        
-        this.decks.forEach(deck => {
-            deck.cards?.forEach(card => {
-                if (card.category) {
-                    this.allCategories.add(card.category);
-                }
-                if (card.hashtags) {
-                    card.hashtags.forEach(tag => {
-                        this.allHashtags.add(tag.replace('#', ''));
-                    });
-                }
-            });
-        });
     }
 
     generateId() {
@@ -333,6 +286,24 @@ class ResourceManager {
         });
     }
 
+    // Get category-based placeholder icon from Simple Icons CDN
+    getCategoryIcon(category) {
+        const categoryIcons = {
+            'frontend': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/react.svg',
+            'backend': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/nodejs.svg',
+            'database': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/postgresql.svg',
+            'design': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/figma.svg',
+            'tools': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/visualstudiocode.svg',
+            'hosting': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/netlify.svg',
+            'api': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/postman.svg',
+            'css': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/css3.svg',
+            'javascript': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/javascript.svg',
+            'framework': 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/vuedotjs.svg'
+        };
+        
+        return categoryIcons[category.toLowerCase()] || 'https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/github.svg';
+    }
+
     renderCard(card, deckId) {
         const hashtags = (card.hashtags || []).map(tag => 
             `<span class="hashtag">#${tag}</span>`
@@ -362,8 +333,8 @@ class ResourceManager {
             <div class="${cardClass}" data-card-id="${card.id}" data-deck-id="${deckId}" onclick="app.showCardDetail('${card.id}')">
                 <div class="card-cover">
                     ${card.coverImage ? 
-                        `<img src="${card.coverImage}" alt="${card.title}" onerror="this.parentElement.innerHTML='<i class=\\"fas fa-tools placeholder-icon\\"></i>'">` :
-                        '<i class="fas fa-tools placeholder-icon"></i>'
+                        `<img src="${card.coverImage}" alt="${card.title}" onerror="this.src='${this.getCategoryIcon(card.category)}'">` :
+                        `<img src="${this.getCategoryIcon(card.category)}" alt="${card.title}" class="category-icon">`
                     }
                     ${card.favorite ? '<div class="card-favorite"><i class="fas fa-star"></i></div>' : ''}
                 </div>
@@ -380,6 +351,43 @@ class ResourceManager {
                 </div>
             </div>
         `;
+    }
+
+    // Lazy loading for high-quality images using modular scraper
+    async startLazyImageLoading() {
+        console.log('🚀 [LAZY] Starting lazy image loading...');
+        
+        for (const deck of this.decks) {
+            for (const card of deck.cards) {
+                if (card.coverImage) continue; // Skip if already has image
+                
+                try {
+                    const newImageUrl = await this.imageScraper.fetchResourceLogo(card.mainUrl);
+                    if (newImageUrl && newImageUrl !== card.coverImage) {
+                        card.coverImage = newImageUrl;
+                        this.updateCardImageInDOM(card.id, newImageUrl);
+                    }
+                } catch (error) {
+                    console.log(`❌ [LAZY] Failed to load image for ${card.title}:`, error);
+                }
+            }
+        }
+        
+        this.saveData();
+        console.log('✅ [LAZY] Lazy loading completed!');
+    }
+
+    // Update specific card image in DOM without full re-render
+    updateCardImageInDOM(cardId, newImageUrl) {
+        const cardElement = document.querySelector(`[data-card-id="${cardId}"]`);
+        if (cardElement) {
+            const imgElement = cardElement.querySelector('.card-cover img');
+            if (imgElement) {
+                imgElement.src = newImageUrl;
+                imgElement.classList.remove('category-icon');
+                console.log(`🎨 [DOM] Updated card ${cardId} image in DOM`);
+            }
+        }
     }
 
     updateFilters() {
@@ -1236,25 +1244,17 @@ class ResourceManager {
     }
 
     findCard(cardId) {
-        for (const deck of this.decks) {
-            const card = deck.cards?.find(c => c.id === cardId);
-            if (card) return card;
-        }
-        return null;
+        return this.dataManager.findCard(cardId);
     }
 
     // Toggle deck layout between horizontal and column
     toggleDeckLayout(deckId) {
-        const deck = this.decks.find(d => d.id === deckId);
-        if (deck) {
-            deck.layout = deck.layout === 'horizontal' ? 'column' : 'horizontal';
-            this.saveData();
-            this.render();
-        }
+        this.dataManager.toggleDeckLayout(deckId);
+        this.uiManager.render();
     }
 
     editDeck(deckId) {
-        const deck = this.decks.find(d => d.id === deckId);
+        const deck = this.dataManager.findDeck(deckId);
         if (!deck) {
             alert('Deck no encontrado');
             return;
