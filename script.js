@@ -380,46 +380,205 @@ class ResourceManager {
         console.log('Filter by hashtag:', hashtag);
     }
 
-    // Web Scraping for Logo/Favicon
+    // Enhanced Web Scraping for High-Resolution Logos
     async fetchResourceLogo(url) {
         try {
             const domain = new URL(url).origin;
             const hostname = new URL(url).hostname;
             
-            // Priority list for favicon URLs
-            const faviconUrls = [
-                `${domain}/favicon-192x192.png`,
-                `${domain}/favicon-180x180.png`,
-                `${domain}/favicon-96x96.png`,
-                `${domain}/apple-touch-icon.png`,
-                `${domain}/favicon.ico`,
-                `${domain}/favicon.png`,
-                `${domain}/favicon.svg`
-            ];
-
-            // Try each favicon URL
-            for (const faviconUrl of faviconUrls) {
-                try {
-                    const response = await fetch(faviconUrl, { 
-                        method: 'HEAD', 
-                        mode: 'no-cors',
-                        cache: 'force-cache'
-                    });
-                    if (response.ok || response.type === 'opaque') {
-                        return faviconUrl;
-                    }
-                } catch (e) {
-                    continue;
-                }
+            // 1. Try curated database first
+            const curatedImage = this.getCuratedLogo(hostname);
+            if (curatedImage) {
+                return curatedImage;
+            }
+            
+            // 2. Try SEO metadata scraping
+            const seoImage = await this.scrapeSEOImage(url);
+            if (seoImage) {
+                return seoImage;
+            }
+            
+            // 3. Try manifest.json and PWA icons
+            const manifestImage = await this.scrapeManifestIcon(domain);
+            if (manifestImage) {
+                return manifestImage;
+            }
+            
+            // 4. Fallback to favicon hierarchy
+            const faviconImage = await this.scrapeFavicon(domain);
+            if (faviconImage) {
+                return faviconImage;
             }
 
-            // Fallback: use Google's favicon service
+            // 5. Final fallback: Google's favicon service
             return `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
             
         } catch (error) {
             console.error('Error fetching logo:', error);
             return `https://www.google.com/s2/favicons?domain=example.com&sz=128`;
         }
+    }
+
+    // Curated database for known tools and frameworks
+    getCuratedLogo(hostname) {
+        const curatedLogos = {
+            'reactjs.org': 'https://reactjs.org/logo-og.png',
+            'react.dev': 'https://react.dev/images/og-default.png',
+            'tailwindcss.com': 'https://tailwindcss.com/_next/static/media/social-card-large.a6e71726.jpg',
+            'figma.com': 'https://cdn.sanity.io/images/599r6htc/localized/46a76c802176eb17b04e12108de7e7e0f3736dc6-1024x1024.png',
+            'github.com': 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
+            'nodejs.org': 'https://nodejs.org/static/images/logo-hexagon-card.png',
+            'vuejs.org': 'https://vuejs.org/images/logo.png',
+            'angular.io': 'https://angular.io/assets/images/logos/angular/angular.svg',
+            'svelte.dev': 'https://svelte.dev/svelte-logo-horizontal.svg',
+            'nextjs.org': 'https://nextjs.org/static/twitter-cards/home.jpg',
+            'nuxtjs.org': 'https://nuxtjs.org/design-kit/colored-logo.svg',
+            'vite.dev': 'https://vitejs.dev/logo-with-shadow.png',
+            'webpack.js.org': 'https://webpack.js.org/assets/icon-square-big.svg',
+            'rollupjs.org': 'https://rollupjs.org/rollup-logo.svg',
+            'parceljs.org': 'https://parceljs.org/assets/parcel.png',
+            'sass-lang.com': 'https://sass-lang.com/assets/img/logos/logo-b6e1ef6e.svg',
+            'getbootstrap.com': 'https://getbootstrap.com/docs/5.3/assets/brand/bootstrap-social-logo.png',
+            'bulma.io': 'https://bulma.io/images/bulma-logo.png',
+            'mui.com': 'https://mui.com/static/logo.png',
+            'chakra-ui.com': 'https://chakra-ui.com/favicon.png',
+            'antd.design': 'https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg',
+            'styled-components.com': 'https://styled-components.com/logo.png',
+            'storybook.js.org': 'https://storybook.js.org/images/placeholders/350x150.png',
+            'jestjs.io': 'https://jestjs.io/img/jest.png',
+            'vitest.dev': 'https://vitest.dev/logo-shadow.svg',
+            'cypress.io': 'https://docs.cypress.io/img/logo/cypress-logo-circle-dark.png',
+            'playwright.dev': 'https://playwright.dev/img/playwright-logo.svg',
+            'eslint.org': 'https://eslint.org/assets/img/logo.svg',
+            'prettier.io': 'https://prettier.io/icon.png',
+            'babeljs.io': 'https://babeljs.io/img/babel.png',
+            'typescriptlang.org': 'https://www.typescriptlang.org/icons/icon-512x512.png',
+            'developer.mozilla.org': 'https://developer.mozilla.org/mdn-social-share.cd6c4a5a.png',
+            'stackoverflow.com': 'https://cdn.sstatic.net/Sites/stackoverflow/Img/apple-touch-icon@2.png',
+            'codepen.io': 'https://cpwebassets.codepen.io/assets/favicon/apple-touch-icon-5ae1a0698dcc2402e9712f7d01ed509a57814f994c660df9f7a952f3060705ee.png',
+            'codesandbox.io': 'https://codesandbox.io/favicon.ico',
+            'vercel.com': 'https://assets.vercel.com/image/upload/front/favicon/vercel/180x180.png',
+            'netlify.com': 'https://www.netlify.com/v3/img/components/logomark.png',
+            'heroku.com': 'https://www.herokucdn.com/deploy/button.svg'
+        };
+        
+        return curatedLogos[hostname] || null;
+    }
+
+    // Scrape SEO metadata for high-resolution images
+    async scrapeSEOImage(url) {
+        try {
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+            const response = await fetch(proxyUrl);
+            
+            if (!response.ok) return null;
+            
+            const data = await response.json();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(data.contents, 'text/html');
+            
+            // Priority order for SEO images
+            const selectors = [
+                'meta[property="og:image"]',
+                'meta[property="og:image:url"]', 
+                'meta[name="twitter:image"]',
+                'meta[name="twitter:image:src"]',
+                'meta[property="article:image"]',
+                'link[rel="image_src"]'
+            ];
+            
+            for (const selector of selectors) {
+                const element = doc.querySelector(selector);
+                if (element) {
+                    const imageUrl = element.getAttribute('content') || element.getAttribute('href');
+                    if (imageUrl && this.isValidImageUrl(imageUrl)) {
+                        // Convert relative URLs to absolute
+                        return new URL(imageUrl, url).href;
+                    }
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error scraping SEO image:', error);
+            return null;
+        }
+    }
+
+    // Scrape manifest.json for PWA icons
+    async scrapeManifestIcon(domain) {
+        try {
+            const manifestUrl = `${domain}/manifest.json`;
+            const response = await fetch(manifestUrl, { mode: 'cors' });
+            
+            if (!response.ok) return null;
+            
+            const manifest = await response.json();
+            if (manifest.icons && manifest.icons.length > 0) {
+                // Find largest icon
+                const largestIcon = manifest.icons.reduce((prev, current) => {
+                    const prevSize = parseInt(prev.sizes?.split('x')[0] || '0');
+                    const currentSize = parseInt(current.sizes?.split('x')[0] || '0');
+                    return currentSize > prevSize ? current : prev;
+                });
+                
+                if (largestIcon.src) {
+                    return new URL(largestIcon.src, domain).href;
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error scraping manifest:', error);
+            return null;
+        }
+    }
+
+    // Original favicon scraping method
+    async scrapeFavicon(domain) {
+        const faviconUrls = [
+            `${domain}/favicon-192x192.png`,
+            `${domain}/favicon-180x180.png`,
+            `${domain}/favicon-96x96.png`,
+            `${domain}/apple-touch-icon.png`,
+            `${domain}/favicon.ico`,
+            `${domain}/favicon.png`,
+            `${domain}/favicon.svg`
+        ];
+
+        for (const faviconUrl of faviconUrls) {
+            try {
+                const response = await fetch(faviconUrl, { 
+                    method: 'HEAD', 
+                    mode: 'no-cors',
+                    cache: 'force-cache'
+                });
+                if (response.ok || response.type === 'opaque') {
+                    return faviconUrl;
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+        
+        return null;
+    }
+
+    // Helper to validate image URLs
+    isValidImageUrl(url) {
+        if (!url || typeof url !== 'string') return false;
+        
+        // Check for common image extensions or formats
+        const imageExtensions = /\.(jpg|jpeg|png|gif|svg|webp|bmp|ico)(\?.*)?$/i;
+        const hasImageExtension = imageExtensions.test(url);
+        
+        // Check for data URLs
+        const isDataUrl = url.startsWith('data:image/');
+        
+        // Check for reasonable URL format
+        const isValidUrl = url.startsWith('http') || url.startsWith('//') || url.startsWith('/');
+        
+        return (hasImageExtension || isDataUrl) && isValidUrl;
     }
 
     // Enhanced scraping for additional metadata
