@@ -386,35 +386,51 @@ class ResourceManager {
             const domain = new URL(url).origin;
             const hostname = new URL(url).hostname;
             
+            console.log(`🔍 [SCRAPING] Starting image search for: ${hostname}`);
+            
             // 1. Try curated database first
+            console.log(`📚 [CURATED] Checking curated database for: ${hostname}`);
             const curatedImage = this.getCuratedLogo(hostname);
             if (curatedImage) {
+                console.log(`✅ [CURATED] Found curated image: ${curatedImage}`);
                 return curatedImage;
             }
+            console.log(`❌ [CURATED] No curated image found for: ${hostname}`);
             
             // 2. Try SEO metadata scraping
+            console.log(`🔍 [SEO] Attempting SEO metadata scraping for: ${url}`);
             const seoImage = await this.scrapeSEOImage(url);
             if (seoImage) {
+                console.log(`✅ [SEO] Found SEO image: ${seoImage}`);
                 return seoImage;
             }
+            console.log(`❌ [SEO] No SEO image found for: ${url}`);
             
             // 3. Try manifest.json and PWA icons
+            console.log(`📱 [MANIFEST] Checking manifest.json for: ${domain}`);
             const manifestImage = await this.scrapeManifestIcon(domain);
             if (manifestImage) {
+                console.log(`✅ [MANIFEST] Found manifest icon: ${manifestImage}`);
                 return manifestImage;
             }
+            console.log(`❌ [MANIFEST] No manifest icon found for: ${domain}`);
             
             // 4. Fallback to favicon hierarchy
+            console.log(`🏠 [FAVICON] Falling back to favicon scraping for: ${domain}`);
             const faviconImage = await this.scrapeFavicon(domain);
             if (faviconImage) {
+                console.log(`✅ [FAVICON] Found favicon: ${faviconImage}`);
                 return faviconImage;
             }
+            console.log(`❌ [FAVICON] No favicon found for: ${domain}`);
 
             // 5. Final fallback: Google's favicon service
-            return `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
+            const googleFavicon = `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
+            console.log(`🔄 [GOOGLE] Using Google favicon service: ${googleFavicon}`);
+            return googleFavicon;
             
         } catch (error) {
-            console.error('Error fetching logo:', error);
+            console.error('❌ [ERROR] Error fetching logo:', error);
             return `https://www.google.com/s2/favicons?domain=example.com&sz=128`;
         }
     }
