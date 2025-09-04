@@ -56,29 +56,64 @@ class ResourceManager {
     // Data Loading
     async loadData() {
         try {
-            if (this.storageMode === 'local') {
-                const response = await fetch('./vault.json');
-                if (response.ok) {
-                    const data = await response.json();
-                    this.decks = data.decks || [];
-                } else {
-                    this.initializeDefaultData();
-                }
+            // Try to load from vault.json first
+            const response = await fetch('./vault.json');
+            if (response.ok) {
+                const vaultData = await response.json();
+                this.decks = vaultData.decks || [];
+                console.log('Data loaded from vault.json');
+                
+                // Update images for existing cards
+                await this.updateExistingCardImages();
             } else {
-                const savedData = localStorage.getItem('cardtools-data');
-                if (savedData) {
-                    const data = JSON.parse(savedData);
-                    this.decks = data.decks || [];
-                } else {
-                    this.initializeDefaultData();
-                }
+                throw new Error('vault.json not found');
             }
         } catch (error) {
-            console.error('Error loading data:', error);
-            this.initializeDefaultData();
+            console.log('Loading from localStorage...');
+            const savedData = localStorage.getItem('cardtools-data');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                this.decks = data.decks || [];
+                // Update images for existing cards from localStorage too
+                await this.updateExistingCardImages();
+            } else {
+                this.initializeDefaultData();
+            }
         }
         
         this.updateCategoriesAndHashtags();
+    }
+
+    // Update cover images for existing cards using new scraping system
+    async updateExistingCardImages() {
+        console.log('🔄 [UPDATE] Updating existing card images...');
+        let updated = false;
+        
+        for (const deck of this.decks) {
+            for (const card of deck.cards) {
+                // Only update if using Google favicon service (old system)
+                if (card.coverImage && card.coverImage.includes('google.com/s2/favicons')) {
+                    console.log(`🔄 [UPDATE] Updating image for card: ${card.title}`);
+                    const newImage = await this.fetchResourceLogo(card.mainUrl);
+                    if (newImage && newImage !== card.coverImage) {
+                        // Validate the new image before using it
+                        const isValid = await this.validateImageUrl(newImage);
+                        if (isValid) {
+                            card.coverImage = newImage;
+                            updated = true;
+                            console.log(`✅ [UPDATE] Updated ${card.title}: ${newImage}`);
+                        } else {
+                            console.log(`❌ [UPDATE] New image is broken for ${card.title}, keeping old one`);
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (updated) {
+            console.log('💾 [UPDATE] Saving updated images...');
+            this.saveData();
+        }
     }
 
     initializeDefaultData() {
@@ -484,12 +519,23 @@ class ResourceManager {
     // Scrape SEO metadata for high-resolution images
     async scrapeSEOImage(url) {
         try {
+            console.log(`🌐 [SEO] Fetching HTML content via proxy for: ${url}`);
             const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
             const response = await fetch(proxyUrl);
             
-            if (!response.ok) return null;
+            if (!response.ok) {
+                console.log(`❌ [SEO] Proxy request failed with status: ${response.status}`);
+                return null;
+            }
             
             const data = await response.json();
+            console.log(`📄 [SEO] HTML content received, length: ${data.contents?.length || 0} chars`);
+            
+            if (!data.contents) {
+                console.log(`❌ [SEO] No HTML content in proxy response`);
+                return null;
+            }
+            
             const parser = new DOMParser();
             const doc = parser.parseFromString(data.contents, 'text/html');
             
@@ -503,20 +549,40 @@ class ResourceManager {
                 'link[rel="image_src"]'
             ];
             
+            console.log(`🔍 [SEO] Searching for meta tags in HTML...`);
+            
             for (const selector of selectors) {
+                console.log(`🏷️ [SEO] Checking selector: ${selector}`);
                 const element = doc.querySelector(selector);
                 if (element) {
                     const imageUrl = element.getAttribute('content') || element.getAttribute('href');
+                    console.log(`🎯 [SEO] Found meta tag with image: ${imageUrl}`);
+                    
                     if (imageUrl && this.isValidImageUrl(imageUrl)) {
                         // Convert relative URLs to absolute
-                        return new URL(imageUrl, url).href;
+                        const absoluteUrl = new URL(imageUrl, url).href;
+                        console.log(`🔍 [SEO] Validating image URL: ${absoluteUrl}`);
+                        
+                        // Validate that the image actually works
+                        const isValid = await this.validateImageUrl(absoluteUrl);
+                        if (isValid) {
+                            console.log(`✅ [SEO] Valid and working image URL found: ${absoluteUrl}`);
+                            return absoluteUrl;
+                        } else {
+                            console.log(`❌ [SEO] Image URL is broken (404): ${absoluteUrl}`);
+                        }
+                    } else {
+                        console.log(`❌ [SEO] Invalid image URL format: ${imageUrl}`);
                     }
+                } else {
+                    console.log(`❌ [SEO] No element found for selector: ${selector}`);
                 }
             }
             
+            console.log(`❌ [SEO] No valid SEO images found in HTML`);
             return null;
         } catch (error) {
-            console.error('Error scraping SEO image:', error);
+            console.error('❌ [SEO] Error scraping SEO image:', error);
             return null;
         }
     }
@@ -595,6 +661,42 @@ class ResourceManager {
         const isValidUrl = url.startsWith('http') || url.startsWith('//') || url.startsWith('/');
         
         return (hasImageExtension || isDataUrl) && isValidUrl;
+    }
+
+    // Validate if image URL actually works (not 404)
+    async validateImageUrl(url) {
+        try {
+            console.log(`🔍 [VALIDATE] Testing image URL: ${url}`);
+            const response = await fetch(url, { 
+                method: 'HEAD', 
+                mode: 'no-cors',
+                cache: 'force-cache'
+            });
+            
+            // For no-cors requests, we can't check status directly
+            // But we can try to load it as an image to test if it works
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    console.log(`✅ [VALIDATE] Image loads successfully: ${url}`);
+                    resolve(true);
+                };
+                img.onerror = () => {
+                    console.log(`❌ [VALIDATE] Image failed to load (404/broken): ${url}`);
+                    resolve(false);
+                };
+                img.src = url;
+                
+                // Timeout after 5 seconds
+                setTimeout(() => {
+                    console.log(`⏱️ [VALIDATE] Image validation timeout: ${url}`);
+                    resolve(false);
+                }, 5000);
+            });
+        } catch (error) {
+            console.log(`❌ [VALIDATE] Error validating image: ${url}`, error);
+            return false;
+        }
     }
 
     // Enhanced scraping for additional metadata
