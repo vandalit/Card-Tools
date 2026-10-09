@@ -2,6 +2,19 @@
 
 Card Tools es un prototipo web estático para guardar y consultar recursos útiles de desarrollo y diseño. La idea es agrupar sitios, herramientas, frameworks y APIs en colecciones (“decks”), con categorías, etiquetas, favoritos, notas y enlaces relacionados.
 
+## Seeder y memoria del usuario
+
+`stub/01/vault.json` es el **seeder placeholder versionado con la app**: contiene los decks y recursos iniciales que verá una instalación sin datos guardados (actualmente, 4 decks y 7 recursos). Al desplegar una versión del repositorio en GitHub Pages, todos los visitantes sin una copia previa reciben ese mismo conjunto inicial.
+
+El seeder no es la memoria compartida de los visitantes:
+
+- Cada origen y perfil de navegador mantiene su propio `localStorage`. GitHub Pages y localhost empiezan del mismo `vault.json`, pero sus cambios no se comparten.
+- La primera carga usa `vault.json` solo cuando no encuentra `cardToolsData` ni `cardtools-data`. Después, la copia local prevalece sobre el seeder.
+- El raspado automático puede actualizar las portadas del seeder y guardar esa copia en el navegador. Desde entonces, cambios futuros a `vault.json` en el repositorio **no se fusionan automáticamente** en ese navegador; la copia ya persistida sigue prevaleciendo.
+- Por lo tanto, para que todos los visitantes nuevos reciban decks iniciales distintos, se actualiza `stub/01/vault.json` y se despliega el cambio. Para visitantes que ya tienen datos locales, hará falta una futura función explícita de actualización/merge o restauración.
+
+Esta separación es intencional: `vault.json` es la plantilla inicial del prototipo; `localStorage` es la memoria privada de cada navegador. Ninguno de los dos reemplaza una solución de sincronización o backup.
+
 ## Estado actual
 
 El proyecto está organizado por etapas. El código existente se conserva en **Stub 01** para dejar claro que es una base experimental y no una versión estable:
@@ -17,7 +30,7 @@ El [`index.html`](./index.html) de la raíz funciona como índice de etapas. Par
 ## Tecnologías
 
 - HTML, CSS y JavaScript sin framework.
-- `vault.json` como conjunto de datos de ejemplo para Stub 01.
+- `stub/01/vault.json` como seeder versionado de decks y recursos iniciales para Stub 01.
 - `localStorage` como almacenamiento de usuario en Stub 01, con la misma prioridad en todos los entornos.
 - Font Awesome y Simple Icons cargados desde CDNs externos.
 
@@ -35,7 +48,7 @@ No hay dependencias de Node ni un proceso de compilación declarado. El prototip
 ### 1. Establecer una única fuente de verdad — implementado en Stub 01
 
 - `cardToolsData` es la clave canónica, consultada en localhost y en hosting.
-- `vault.json` solo se usa como semilla cuando no existe copia guardada.
+- `vault.json` es solo el seeder: se carga si no existe memoria local y no se mezcla automáticamente con datos ya guardados.
 - El documento mantiene `version` y `lastModified`; los datos inválidos producen un error visible en vez de cargar defaults sobre ellos.
 
 ### 2. Recuperar y migrar compatiblemente — implementado en Stub 01
@@ -79,6 +92,8 @@ La cobertura automatizada actual cubre carga, migración, conflicto, JSON invál
 ### 6. Decidir si se requiere sincronización
 
 `localStorage` solo persiste en un navegador, perfil y origen concretos; no sincroniza entre dispositivos. Si el producto necesita una memoria compartida, multiusuario o recuperable fuera del dispositivo, diseñar posteriormente un backend con autenticación, copias de seguridad y una estrategia de conflictos. No asumir que GitHub Pages sincroniza el almacenamiento local.
+
+Por separado, definir una política para actualizar el seeder sin reemplazar ni perder los datos ya persistidos de visitantes existentes.
 
 ## Estructura de etapas
 
