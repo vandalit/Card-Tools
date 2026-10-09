@@ -2,6 +2,8 @@
 
 Revisión exploratoria de la estructura y el código de Card Tools. El proyecto es una aplicación web estática en español para organizar recursos de desarrollo y diseño en decks, con búsqueda, favoritos, enlaces y carga de imágenes. Usa HTML, CSS y JavaScript sin framework ni dependencias declaradas.
 
+> **Nota de vigencia:** este documento recoge los hallazgos del estado inicial. La corrección posterior de persistencia está registrada en [la bitácora](./bitacora.md).
+
 ## Hallazgos principales
 
 ### 1. Lógica duplicada y estado inconsistente en `ResourceManager` — prioridad alta

@@ -66,7 +66,7 @@ class ResourceManager {
     }
 
     saveData() {
-        this.dataManager.saveData();
+        return this.dataManager.saveData();
     }
 
     // Remove all remaining this.decks references - these should use dataManager
@@ -116,7 +116,7 @@ class ResourceManager {
 
 
     initializeDefaultData() {
-        this.decks = [
+        this.dataManager.decks = [
             {
                 id: 'recursos-generales-default',
                 name: 'Recursos Generales',
@@ -196,6 +196,7 @@ class ResourceManager {
             }
         ];
         
+        this.dataManager.updateCollections();
         this.saveData();
     }
 
@@ -214,21 +215,11 @@ class ResourceManager {
 
     // Rendering
     render() {
-        this.renderDecks();
+        this.uiManager.render();
     }
 
     renderDecks() {
-        const container = document.getElementById('decksContainer');
-        if (!container) return;
-        
-        const sortedDecks = [...this.decks].sort((a, b) => {
-            if (a.name === 'Recursos Generales') return -1;
-            if (b.name === 'Recursos Generales') return 1;
-            if (a.order !== b.order) return (a.order || 0) - (b.order || 0);
-            return new Date(a.createdAt) - new Date(b.createdAt);
-        });
-        
-        container.innerHTML = sortedDecks.map(deck => this.renderDeck(deck)).join('');
+        this.uiManager.render();
     }
 
     renderDeck(deck) {
@@ -265,25 +256,7 @@ class ResourceManager {
     }
 
     filterCards(cards) {
-        return cards.filter(card => {
-            if (this.showOnlyFavorites && !card.favorite) {
-                return false;
-            }
-            
-            if (this.currentSearchQuery) {
-                const searchFields = [
-                    card.title,
-                    card.description,
-                    card.notes,
-                    card.category,
-                    ...(card.hashtags || [])
-                ].filter(Boolean).join(' ').toLowerCase();
-                
-                return searchFields.includes(this.currentSearchQuery);
-            }
-            
-            return true;
-        });
+        return this.dataManager.filterCards(cards);
     }
 
     // Get category-based placeholder icon from Simple Icons CDN
@@ -356,24 +329,28 @@ class ResourceManager {
     // Lazy loading for high-quality images using modular scraper
     async startLazyImageLoading() {
         console.log('🚀 [LAZY] Starting lazy image loading...');
-        
-        for (const deck of this.decks) {
-            for (const card of deck.cards) {
-                if (card.coverImage) continue; // Skip if already has image
-                
-                try {
-                    const newImageUrl = await this.imageScraper.fetchResourceLogo(card.mainUrl);
-                    if (newImageUrl && newImageUrl !== card.coverImage) {
-                        card.coverImage = newImageUrl;
-                        this.updateCardImageInDOM(card.id, newImageUrl);
-                    }
-                } catch (error) {
-                    console.log(`❌ [LAZY] Failed to load image for ${card.title}:`, error);
+
+        const imageUpdates = [];
+        for (const card of this.dataManager.getCardsNeedingImages()) {
+            try {
+                const newImageUrl = await this.imageScraper.fetchResourceLogo(card.mainUrl);
+                if (newImageUrl && newImageUrl !== card.coverImage) {
+                    imageUpdates.push({ cardId: card.id, imageUrl: newImageUrl });
+                    this.updateCardImageInDOM(card.id, newImageUrl);
                 }
+            } catch (error) {
+                console.error(`❌ [LAZY] Failed to load image for ${card.title}:`, error);
             }
         }
-        
-        this.saveData();
+
+        if (imageUpdates.length > 0) {
+            try {
+                this.dataManager.updateCardImages(imageUpdates);
+            } catch (error) {
+                this.uiManager.render();
+                throw error;
+            }
+        }
         console.log('✅ [LAZY] Lazy loading completed!');
     }
 
@@ -391,26 +368,15 @@ class ResourceManager {
     }
 
     updateFilters() {
-        this.updateCategoryFilters();
-        this.updateHashtagFilters();
+        this.uiManager.updateFilters();
     }
 
     updateCategoryFilters() {
-        const container = document.getElementById('categoryFilters');
-        if (!container) return;
-        
-        container.innerHTML = Array.from(this.allCategories).map(category => 
-            `<span class="filter-tag" onclick="app.toggleCategoryFilter('${category}')">${category}</span>`
-        ).join('');
+        this.uiManager.updateCategoryFilters();
     }
 
     updateHashtagFilters() {
-        const container = document.getElementById('hashtagFilters');
-        if (!container) return;
-        
-        container.innerHTML = Array.from(this.allHashtags).slice(0, 10).map(hashtag => 
-            `<span class="filter-tag" onclick="app.toggleHashtagFilter('${hashtag}')">#${hashtag}</span>`
-        ).join('');
+        this.uiManager.updateHashtagFilters();
     }
 
     toggleCategoryFilter(category) {
@@ -868,7 +834,7 @@ class ResourceManager {
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
-                this.currentSearchQuery = e.target.value.toLowerCase();
+                this.dataManager.setSearchQuery(e.target.value);
                 this.render();
             });
         }
@@ -893,10 +859,10 @@ class ResourceManager {
 
     // Toggle favorite filter
     toggleFavoriteFilter() {
-        this.showOnlyFavorites = !this.showOnlyFavorites;
+        this.dataManager.toggleFavoritesFilter();
         const btn = document.getElementById('favoriteFilterBtn');
         if (btn) {
-            btn.classList.toggle('active', this.showOnlyFavorites);
+            btn.classList.toggle('active', this.dataManager.showOnlyFavorites);
         }
         this.render();
     }
@@ -1021,33 +987,34 @@ class ResourceManager {
             return;
         }
         
-        if (this.currentEditingDeck) {
-            // Update existing deck
-            this.currentEditingDeck.name = deckName;
-            this.currentEditingDeck.description = deckDescription;
-            this.currentEditingDeck = null;
-        } else {
-            // Create new deck
-            const deckData = {
-                id: this.generateId(),
-                name: deckName,
-                description: deckDescription,
-                layout: 'column',
-                order: this.decks.length,
-                cards: [],
-                createdAt: new Date().toISOString()
-            };
-            this.decks.push(deckData);
-        }
-        
-        if (this.saveData()) {
+        try {
+            if (this.currentEditingDeck) {
+                this.dataManager.updateDeck(this.currentEditingDeck.id, {
+                    name: deckName,
+                    description: deckDescription
+                });
+                this.currentEditingDeck = null;
+            } else {
+                this.dataManager.addDeck({
+                    id: this.generateId(),
+                    name: deckName,
+                    description: deckDescription,
+                    layout: 'column',
+                    order: this.dataManager.getDecks().length,
+                    cards: [],
+                    createdAt: new Date().toISOString()
+                });
+            }
+
             this.render();
-            this.updateFilters();
+            this.uiManager.updateFilters();
             this.hideDeckModal();
             
             // Reset form and modal title
             document.getElementById('deckForm').reset();
             document.getElementById('deckModalTitle').textContent = 'Crear Nuevo Deck';
+        } catch (error) {
+            console.error('No se pudo guardar el deck:', error);
         }
     }
 
@@ -1167,29 +1134,21 @@ class ResourceManager {
 
     // Card management
     addCard(deckId, cardData) {
-        const deck = this.decks.find(d => d.id === deckId);
-        if (deck) {
-            if (!deck.cards) deck.cards = [];
-            deck.cards.push(cardData);
-            this.saveData();
-            this.updateCategoriesAndHashtags();
-            this.render();
-            this.updateFilters();
+        if (!cardData) {
+            this.showCardModal(deckId);
+            return;
         }
+
+        this.dataManager.addCard(deckId, cardData);
+        this.render();
+        this.uiManager.updateFilters();
     }
 
     updateCard(cardData) {
-        for (const deck of this.decks) {
-            const cardIndex = deck.cards?.findIndex(c => c.id === cardData.id);
-            if (cardIndex !== -1) {
-                deck.cards[cardIndex] = cardData;
-                this.saveData();
-                this.updateCategoriesAndHashtags();
-                this.render();
-                this.updateFilters();
-                break;
-            }
-        }
+        const result = this.dataManager.updateCard(cardData.id, cardData);
+        this.render();
+        this.uiManager.updateFilters();
+        return result;
     }
 
     // URL actions
@@ -1204,8 +1163,7 @@ class ResourceManager {
         
         const urlObj = card.urls.find(u => u.url === url);
         if (urlObj) {
-            urlObj.bookmark = !urlObj.bookmark;
-            if (this.saveData()) {
+            if (this.dataManager.toggleUrlFlag(cardId, url, 'bookmark')) {
                 this.render();
                 
                 // Update detail modal if open
@@ -1229,8 +1187,7 @@ class ResourceManager {
         
         const urlObj = card.urls.find(u => u.url === url);
         if (urlObj) {
-            urlObj.like = !urlObj.like;
-            if (this.saveData()) {
+            if (this.dataManager.toggleUrlFlag(cardId, url, 'like')) {
                 this.render();
                 
                 // Update detail modal if open
@@ -1274,7 +1231,7 @@ class ResourceManager {
     }
 
     deleteDeck(deckId) {
-        const deck = this.decks.find(d => d.id === deckId);
+        const deck = this.dataManager.findDeck(deckId);
         if (!deck) {
             alert('Deck no encontrado');
             return;
@@ -1286,11 +1243,9 @@ class ResourceManager {
             : `¿Estás seguro de que quieres eliminar "${deck.name}"?`;
             
         if (confirm(message)) {
-            this.decks = this.decks.filter(d => d.id !== deckId);
-            if (this.saveData()) {
-                this.updateCategoriesAndHashtags();
+            if (this.dataManager.deleteDeck(deckId)) {
                 this.render();
-                this.updateFilters();
+                this.uiManager.updateFilters();
             }
         }
     }
@@ -1305,7 +1260,7 @@ class ResourceManager {
         this.currentEditingCard = card;
         
         // Find the deck containing this card
-        const deck = this.decks.find(d => d.cards?.some(c => c.id === cardId));
+        const deck = this.dataManager.getDecks().find(d => d.cards?.some(c => c.id === cardId));
         
         this.showCardModal(deck?.id);
     }
@@ -1318,17 +1273,9 @@ class ResourceManager {
         }
         
         if (confirm(`¿Estás seguro de que quieres eliminar "${card.title}"?`)) {
-            for (const deck of this.decks) {
-                const cardIndex = deck.cards?.findIndex(c => c.id === cardId);
-                if (cardIndex !== -1) {
-                    deck.cards.splice(cardIndex, 1);
-                    if (this.saveData()) {
-                        this.updateCategoriesAndHashtags();
-                        this.render();
-                        this.updateFilters();
-                    }
-                    break;
-                }
+            if (this.dataManager.deleteCard(cardId)) {
+                this.render();
+                this.uiManager.updateFilters();
             }
         }
     }

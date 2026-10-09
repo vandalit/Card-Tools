@@ -9,6 +9,9 @@ class DataManager {
         this.currentSearchQuery = '';
         this.showOnlyFavorites = false;
         this.storageMode = 'local';
+        this.storageNotice = '';
+        this.storageKey = 'cardToolsData';
+        this.legacyStorageKey = 'cardtools-data';
     }
 
     // Environment detection
@@ -46,47 +49,106 @@ class DataManager {
 
     // Data loading
     async loadData() {
-        try {
-            if (this.storageMode === 'local') {
-                await this.loadFromFile();
-            } else {
-                this.loadFromStorage();
-            }
-        } catch (error) {
-            console.log('Error loading data, using defaults:', error);
-            this.initializeDefaultData();
+        if (this.loadFromStorage()) {
+            this.updateCollections();
+            return;
         }
-        
+
+        await this.loadFromFile();
         this.updateCollections();
     }
 
     async loadFromFile() {
+        let response;
         try {
-            const response = await fetch('./vault.json');
-            if (response.ok) {
-                const data = await response.json();
-                this.decks = data.decks || [];
-            } else {
-                throw new Error('Failed to load vault.json');
-            }
+            response = await fetch('./vault.json');
         } catch (error) {
-            console.log('Could not load vault.json, checking localStorage...');
-            this.loadFromStorage();
+            console.warn('No se pudo acceder a vault.json; se usarán los datos iniciales mínimos.', error);
+            this.initializeDefaultData();
+            return;
         }
+
+        if (!response.ok) {
+            console.warn(`No se pudo cargar vault.json (HTTP ${response.status}); se usarán los datos iniciales mínimos.`);
+            this.initializeDefaultData();
+            return;
+        }
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (error) {
+            throw new Error('vault.json contiene JSON inválido; no se cargaron datos de reemplazo.', { cause: error });
+        }
+
+        this.validateData(data, 'vault.json');
+        this.decks = data.decks;
+        console.info('Datos iniciales cargados desde vault.json');
     }
 
     loadFromStorage() {
-        const savedData = localStorage.getItem('cardToolsData');
-        if (savedData) {
-            try {
-                const data = JSON.parse(savedData);
-                this.decks = data.decks || [];
-            } catch (error) {
-                console.error('Error parsing saved data:', error);
-                this.initializeDefaultData();
+        const savedData = localStorage.getItem(this.storageKey);
+        const legacyData = localStorage.getItem(this.legacyStorageKey);
+
+        if (savedData !== null) {
+            const data = this.parseData(savedData, this.storageKey);
+
+            if (legacyData !== null) {
+                try {
+                    const legacy = this.parseData(legacyData, this.legacyStorageKey);
+                    if (JSON.stringify(data.decks) !== JSON.stringify(legacy.decks)) {
+                        throw new Error(
+                            `Hay dos copias distintas (${this.storageKey} y ${this.legacyStorageKey}). Se conservaron ambas; respáldalas y elige cuál restaurar.`
+                        );
+                    }
+
+                    this.storageNotice = `Las claves ${this.storageKey} y ${this.legacyStorageKey} contienen los mismos decks; ambas copias se conservaron.`;
+                } catch (error) {
+                    if (error.message.startsWith('Hay dos copias distintas')) throw error;
+                    console.warn(`No se pudo validar la copia ${this.legacyStorageKey}; se conserva sin modificar.`, error);
+                    this.storageNotice = `Se cargó ${this.storageKey}. Existe una copia ${this.legacyStorageKey} que no se pudo validar y fue conservada.`;
+                }
             }
-        } else {
-            this.initializeDefaultData();
+
+            this.decks = data.decks;
+            return true;
+        }
+
+        if (legacyData === null) return false;
+
+        const data = this.parseData(legacyData, this.legacyStorageKey);
+        this.decks = data.decks;
+        this.saveData();
+        console.info(`Datos migrados desde ${this.legacyStorageKey}; la clave antigua se conserva.`);
+        this.storageNotice = `Datos migrados desde ${this.legacyStorageKey}. La copia original se conserva en el navegador.`;
+        return true;
+    }
+
+    parseData(serializedData, source) {
+        let data;
+        try {
+            data = JSON.parse(serializedData);
+        } catch (error) {
+            throw new Error(`Los datos de ${source} contienen JSON inválido. Se conservaron sin cambios.`, { cause: error });
+        }
+
+        this.validateData(data, source);
+        return data;
+    }
+
+    validateData(data, source) {
+        if (!data || !Array.isArray(data.decks)) {
+            throw new Error(`Los datos de ${source} no tienen una lista válida de decks.`);
+        }
+
+        for (const [deckIndex, deck] of data.decks.entries()) {
+            if (!deck || typeof deck !== 'object' || !Array.isArray(deck.cards)) {
+                throw new Error(`Los datos de ${source} contienen un deck inválido en la posición ${deckIndex}.`);
+            }
+
+            if (deck.cards.some(card => !card || typeof card !== 'object')) {
+                throw new Error(`Los datos de ${source} contienen una tarjeta inválida en el deck ${deckIndex}.`);
+            }
         }
     }
 
@@ -94,11 +156,38 @@ class DataManager {
     saveData() {
         const data = {
             decks: this.decks,
-            lastModified: new Date().toISOString()
+            lastModified: new Date().toISOString(),
+            version: '1.0.0'
         };
-        
-        localStorage.setItem('cardToolsData', JSON.stringify(data));
-        console.log('💾 Data saved to localStorage');
+
+        try {
+            const serializedData = JSON.stringify(data);
+            localStorage.setItem(this.storageKey, serializedData);
+            console.log(`💾 Datos guardados en localStorage (${this.storageKey})`);
+            return true;
+        } catch (error) {
+            console.error('No se pudieron guardar los datos en localStorage:', error);
+            alert('No se pudieron guardar los cambios en este navegador. Conserva una copia de seguridad y revisa el espacio disponible.');
+            throw error;
+        }
+    }
+
+    getStorageNotice() {
+        return this.storageNotice;
+    }
+
+    persistMutation(mutation) {
+        const previousDecks = JSON.stringify(this.decks);
+
+        try {
+            mutation();
+            this.updateCollections();
+            return this.saveData();
+        } catch (error) {
+            this.decks = JSON.parse(previousDecks);
+            this.updateCollections();
+            throw error;
+        }
     }
 
     // Initialize default data
@@ -180,7 +269,8 @@ class DataManager {
         return this.decks.map(deck => ({
             ...deck,
             cards: this.filterCards(deck.cards)
-        })).filter(deck => deck.cards.length > 0);
+        })).filter(deck => deck.cards.length > 0 ||
+            (!this.currentSearchQuery && !this.showOnlyFavorites));
     }
 
     getAllCategories() {
@@ -214,70 +304,76 @@ class DataManager {
 
     // CRUD operations
     addDeck(deck) {
-        this.decks.push(deck);
-        this.updateCollections();
-        this.saveData();
+        return this.persistMutation(() => this.decks.push(deck));
     }
 
     updateDeck(deckId, updates) {
         const deck = this.findDeck(deckId);
         if (deck) {
-            Object.assign(deck, updates);
-            this.updateCollections();
-            this.saveData();
+            return this.persistMutation(() => Object.assign(deck, updates));
         }
+        return false;
     }
 
     deleteDeck(deckId) {
-        this.decks = this.decks.filter(d => d.id !== deckId);
-        this.updateCollections();
-        this.saveData();
+        if (!this.findDeck(deckId)) return false;
+        return this.persistMutation(() => {
+            this.decks = this.decks.filter(d => d.id !== deckId);
+        });
     }
 
     addCard(deckId, card) {
         const deck = this.findDeck(deckId);
         if (deck) {
-            deck.cards.push(card);
-            this.updateCollections();
-            this.saveData();
+            return this.persistMutation(() => deck.cards.push(card));
         }
+        return false;
     }
 
     updateCard(cardId, updates) {
         const card = this.findCard(cardId);
         if (card) {
-            Object.assign(card, updates);
-            this.updateCollections();
-            this.saveData();
+            return this.persistMutation(() => Object.assign(card, updates));
         }
+        return false;
     }
 
     deleteCard(cardId) {
-        for (const deck of this.decks) {
-            const cardIndex = deck.cards.findIndex(c => c.id === cardId);
-            if (cardIndex !== -1) {
-                deck.cards.splice(cardIndex, 1);
-                this.updateCollections();
-                this.saveData();
-                break;
-            }
-        }
+        const deck = this.decks.find(item => item.cards.some(card => card.id === cardId));
+        if (!deck) return false;
+        return this.persistMutation(() => {
+            deck.cards = deck.cards.filter(card => card.id !== cardId);
+        });
     }
 
     toggleCardFavorite(cardId) {
         const card = this.findCard(cardId);
         if (card) {
-            card.favorite = !card.favorite;
-            this.saveData();
+            return this.persistMutation(() => {
+                card.favorite = !card.favorite;
+            });
         }
+        return false;
     }
 
     toggleDeckLayout(deckId) {
         const deck = this.findDeck(deckId);
         if (deck) {
-            deck.layout = deck.layout === 'horizontal' ? 'grid' : 'horizontal';
-            this.saveData();
+            return this.persistMutation(() => {
+                deck.layout = deck.layout === 'horizontal' ? 'grid' : 'horizontal';
+            });
         }
+        return false;
+    }
+
+    toggleUrlFlag(cardId, url, flag) {
+        const card = this.findCard(cardId);
+        const urlEntry = card?.urls?.find(item => item.url === url);
+        if (!urlEntry || !['bookmark', 'like'].includes(flag)) return false;
+
+        return this.persistMutation(() => {
+            urlEntry[flag] = !urlEntry[flag];
+        });
     }
 
     // Get cards that need image scraping (including those with placeholder/low-quality images)
@@ -302,13 +398,19 @@ class DataManager {
 
     // Update card image after scraping
     updateCardImage(cardId, imageUrl) {
-        const card = this.findCard(cardId);
-        if (card) {
-            card.coverImage = imageUrl;
-            this.saveData();
-            return true;
-        }
-        return false;
+        return this.updateCardImages([{ cardId, imageUrl }]);
+    }
+
+    updateCardImages(imageUpdates) {
+        const validUpdates = imageUpdates.filter(({ cardId }) => this.findCard(cardId));
+        if (validUpdates.length === 0) return false;
+
+        return this.persistMutation(() => {
+            validUpdates.forEach(({ cardId, imageUrl }) => {
+                const card = this.findCard(cardId);
+                card.coverImage = imageUrl;
+            });
+        });
     }
 }
 

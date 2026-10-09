@@ -3,6 +3,8 @@
 **Fecha:** 2026-10-09  
 **Alcance:** flujo de carga, guardado, cambios de entorno, historial de Git y controles de backup/importación. No se inspeccionó el almacenamiento privado de ningún navegador y no se modificaron ni borraron datos.
 
+> **Nota de vigencia:** este informe describe el estado previo a las correcciones registradas en [la bitácora](./bitacora.md). Para el comportamiento actual, consultar esa entrada y el README.
+
 ## Resumen ejecutivo
 
 La aplicación no tiene una única fuente de verdad. Según el entorno, lee `vault.json` o `localStorage`, pero todas las escrituras del gestor nuevo van a `localStorage`. No existe un mecanismo conectado que sincronice esos destinos, migre de forma segura la clave antigua o exporte/restaure datos desde la interfaz.

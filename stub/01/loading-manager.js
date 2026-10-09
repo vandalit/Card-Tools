@@ -27,12 +27,14 @@ class LoadingManager {
             // Step 4: Start image scraping (background)
             console.log('🔄 [LOAD] Step 4: Starting background image scraping');
             setTimeout(() => {
-                this.startImageScraping();
+                this.startImageScraping().catch(error => {
+                    console.error('❌ [SCRAPE] Could not persist scraped images:', error);
+                });
             }, 500); // Small delay to ensure UI is rendered
             
         } catch (error) {
             console.error('❌ [LOAD] Error during initialization:', error);
-            this.uiManager.render(); // Fallback to basic render
+            this.uiManager.showError(error);
         }
     }
 
@@ -49,30 +51,17 @@ class LoadingManager {
 
         console.log(`🔍 [SCRAPE] Found ${cardsNeedingImages.length} cards needing images`);
         
-        // Force scraping for all cards with Simple Icons placeholders
-        const allCards = [];
-        this.dataManager.getDecks().forEach(deck => {
-            deck.cards.forEach(card => {
-                if (card.mainUrl) {
-                    allCards.push(card);
-                }
-            });
-        });
-        
-        console.log(`🔄 [SCRAPE] Processing ${allCards.length} total cards for high-quality images`);
+        const imageUpdates = [];
+        console.log(`🔄 [SCRAPE] Processing ${cardsNeedingImages.length} cards that need images`);
 
-        // Process ALL cards to ensure high-quality images
-        for (const card of allCards) {
+        for (const card of cardsNeedingImages) {
             try {
                 console.log(`🔍 [SCRAPE] Processing: ${card.title}`);
                 
                 const newImageUrl = await this.imageScraper.fetchResourceLogo(card.mainUrl);
                 
                 if (newImageUrl && newImageUrl !== card.coverImage) {
-                    // Update data
-                    this.dataManager.updateCardImage(card.id, newImageUrl);
-                    
-                    // Update UI immediately
+                    imageUpdates.push({ cardId: card.id, imageUrl: newImageUrl });
                     this.uiManager.updateCardImage(card.id, newImageUrl);
                     
                     console.log(`✅ [SCRAPE] Updated ${card.title} with new image: ${newImageUrl}`);
@@ -85,6 +74,15 @@ class LoadingManager {
                 
             } catch (error) {
                 console.log(`❌ [SCRAPE] Failed to process ${card.title}:`, error);
+            }
+        }
+
+        if (imageUpdates.length > 0) {
+            try {
+                this.dataManager.updateCardImages(imageUpdates);
+            } catch (error) {
+                this.uiManager.render();
+                throw error;
             }
         }
         
@@ -113,12 +111,13 @@ class LoadingManager {
                 });
             });
 
+            const imageUpdates = [];
             for (const card of allCards) {
                 try {
                     const newImageUrl = await this.imageScraper.fetchResourceLogo(card.mainUrl);
                     
                     if (newImageUrl) {
-                        this.dataManager.updateCardImage(card.id, newImageUrl);
+                        imageUpdates.push({ cardId: card.id, imageUrl: newImageUrl });
                         this.uiManager.updateCardImage(card.id, newImageUrl);
                     }
                     
@@ -126,6 +125,15 @@ class LoadingManager {
                     
                 } catch (error) {
                     console.log(`❌ [REFRESH] Failed to refresh ${card.title}:`, error);
+                }
+            }
+
+            if (imageUpdates.length > 0) {
+                try {
+                    this.dataManager.updateCardImages(imageUpdates);
+                } catch (error) {
+                    this.uiManager.render();
+                    throw error;
                 }
             }
             

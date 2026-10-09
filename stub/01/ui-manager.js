@@ -56,10 +56,35 @@ class UIManager {
         
         if (decks.length === 0) {
             container.innerHTML = '<div class="empty-state">No hay decks disponibles</div>';
+            this.showStorageNotice();
             return;
         }
 
         container.innerHTML = decks.map(deck => this.renderDeck(deck)).join('');
+        this.showStorageNotice();
+    }
+
+    showStorageNotice() {
+        const message = this.dataManager.getStorageNotice();
+        const container = document.getElementById('decksContainer');
+        if (!message || !container) return;
+
+        const notice = document.createElement('div');
+        notice.className = 'storage-notice';
+        notice.setAttribute('role', 'status');
+        notice.textContent = message;
+        container.prepend(notice);
+    }
+
+    showError(error) {
+        const container = document.getElementById('decksContainer');
+        if (!container) return;
+
+        const message = document.createElement('div');
+        message.className = 'storage-error';
+        message.setAttribute('role', 'alert');
+        message.textContent = `No se pudieron cargar los datos: ${error.message}`;
+        container.replaceChildren(message);
     }
 
     // Render single deck

@@ -6,54 +6,55 @@ Card Tools es un prototipo web estático para guardar y consultar recursos útil
 
 El proyecto está organizado por etapas. El código existente se conserva en **Stub 01** para dejar claro que es una base experimental y no una versión estable:
 
-- **Stub 01:** aplicación actual en [`stub/01/`](./stub/01/). Permite explorar el concepto de catálogo de recursos, pero su persistencia no es fiable todavía.
+- **Stub 01:** aplicación actual en [`stub/01/`](./stub/01/). Permite explorar el catálogo; su persistencia dentro del mismo origen ya está corregida, pero aún no sincroniza orígenes/dispositivos ni ofrece backup/restauración.
 - **Lab 01:** etapa planificada para investigar y validar el modelo de persistencia de forma aislada.
 - **Stub 02:** etapa planificada para integrar los aprendizajes del laboratorio en un nuevo prototipo, sin reemplazar Stub 01 hasta verificar el resultado.
 
 El [`index.html`](./index.html) de la raíz funciona como índice de etapas. Para abrir la aplicación actual, usa [Stub 01](./stub/01/index.html).
 
-> **Advertencia:** no confíes datos importantes a Stub 01 ni limpies el almacenamiento del navegador. Antes de continuar, conserva cualquier dato local recuperable. La aplicación no implementa actualmente un flujo operativo de backup/restauración.
+> **Advertencia:** el navegador aísla `localStorage` por origen y perfil. La política de carga ya es la misma en localhost y GitHub Pages, pero esas ubicaciones no comparten ni sincronizan datos. Conserva los datos locales recuperables; todavía no hay una interfaz funcional de backup/restauración.
 
 ## Tecnologías
 
 - HTML, CSS y JavaScript sin framework.
 - `vault.json` como conjunto de datos de ejemplo para Stub 01.
-- `localStorage` como almacenamiento del navegador en el prototipo actual.
+- `localStorage` como almacenamiento de usuario en Stub 01, con la misma prioridad en todos los entornos.
 - Font Awesome y Simple Icons cargados desde CDNs externos.
 
 No hay dependencias de Node ni un proceso de compilación declarado. El prototipo debe servirse desde un servidor estático local para evitar diferencias del protocolo `file://`; por ejemplo, desde la raíz se puede usar `python3 -m http.server` y abrir `http://localhost:8000/`.
 
 ## Hoja de ruta — prioridad: persistencia
 
-### 0. Preservar datos antes de reparar
+### 0. Preservar datos de otros orígenes
 
-- No borrar los datos del sitio, perfiles ni claves de almacenamiento existentes.
+- No borrar los datos del sitio, perfiles ni claves de almacenamiento existentes antes de recuperar copias creadas con versiones anteriores.
 - Revisar en cada navegador, perfil y origen utilizados las claves `cardtools-data` y `cardToolsData`.
 - Guardar cualquier valor encontrado como archivo JSON independiente antes de migrar o volver a ejecutar el prototipo.
 - Conservar `stub/01/vault.json` y los backups manuales existentes.
 
-### 1. Establecer una única fuente de verdad
+### 1. Establecer una única fuente de verdad — implementado en Stub 01
 
-- Definir el almacenamiento persistente de usuario como fuente primaria, sin cambiar de comportamiento según se ejecute en localhost o en hosting.
-- Usar `vault.json` solo como datos iniciales cuando todavía no exista almacenamiento del usuario; nunca cargarlo por encima de datos guardados.
-- Acordar una clave canónica y un formato versionado del documento persistido.
-- Mostrar errores de lectura/escritura, JSON corrupto y cuota agotada; no sustituir datos inválidos silenciosamente por defaults.
+- `cardToolsData` es la clave canónica, consultada en localhost y en hosting.
+- `vault.json` solo se usa como semilla cuando no existe copia guardada.
+- El documento mantiene `version` y `lastModified`; los datos inválidos producen un error visible en vez de cargar defaults sobre ellos.
 
-### 2. Recuperar y migrar compatiblemente
+### 2. Recuperar y migrar compatiblemente — implementado en Stub 01
 
-- Detectar tanto `cardtools-data` como `cardToolsData`.
-- Validar y comparar las copias antes de decidir cuál migrar; si ambas existen y difieren, conservar ambas y pedir una elección en lugar de sobrescribir.
-- Hacer la migración atómica: escribir y verificar la copia nueva antes de considerar archivada la anterior.
-- Mantener respaldo de origen y registrar versión/fecha de migración.
+- Se reconoce la clave antigua `cardtools-data`; se copia a la clave canónica y la original se conserva.
+- Si ambas claves contienen decks distintos, el arranque se detiene con un aviso para evitar escoger/sobrescribir silenciosamente.
+- Si la escritura de una mutación falla, se revierte el estado en memoria y se notifica el error.
 
-### 3. Unificar el flujo de cambios y guardado
+La aplicación no puede migrar datos entre `localhost` y GitHub Pages por sí sola: son almacenes aislados del navegador. La migración anterior solo ocurre dentro del mismo origen/perfil.
 
-- Hacer que todas las acciones de UI llamen a `DataManager`; eliminar implementaciones duplicadas basadas en `this.decks`.
-- Asegurar que `saveData()` devuelva un resultado explícito y que la interfaz solo confirme el cambio después de una escritura exitosa.
-- Evitar que la carga de imágenes en segundo plano guarde una copia antigua o reemplaze el conjunto completo de datos.
-- Mantener los cambios cosméticos (como imágenes) separados o aplicarlos sobre el estado vigente sin perder otros campos.
+### 3. Unificar el flujo de cambios y guardado — base implementada
+
+- Las acciones CRUD activas delegan en `DataManager`, con rollback de memoria si falla el guardado.
+- La carga automática de portadas solo procesa tarjetas que necesitan imagen; agrupa los cambios de imagen en una escritura.
+- Se mantiene el refresco explícito de todas las imágenes como ruta separada.
 
 ### 4. Implementar backup, exportación e importación
+
+**Pendiente.**
 
 - Ofrecer exportación completa del formato JSON canónico, sin perder campos como favoritos, notas, etiquetas, enlaces y orden.
 - Validar y previsualizar una importación antes de reemplazar o combinar datos.
@@ -62,10 +63,18 @@ No hay dependencias de Node ni un proceso de compilación declarado. El prototip
 
 ### 5. Verificar persistencia con pruebas de regresión
 
+Las pruebas iniciales de persistencia están disponibles con Node.js:
+
+```sh
+node --test stub/01/tests/persistence.test.js
+```
+
 - Probar reinicio y recarga en localhost, GitHub Pages y un origen personalizado.
 - Cubrir ambos nombres históricos de clave, almacén vacío, JSON inválido, dos copias divergentes y error de cuota.
 - Comprobar que crear, editar, eliminar, cambiar favoritos y actualizar imágenes sobreviva a una recarga.
 - Confirmar que una importación/exportación de ida y vuelta conserva el documento completo.
+
+La cobertura automatizada actual cubre carga, migración, conflicto, JSON inválido, fallback a vault, rollback y escritura en lote. Falta cobertura browser-level del ciclo CRUD completo y de exportar/restaurar.
 
 ### 6. Decidir si se requiere sincronización
 
@@ -94,3 +103,5 @@ Las etapas futuras no se consideran implementadas hasta que tengan su propio con
 
 - [Hallazgos iniciales](./docs/hallazgos.md)
 - [Auditoría de persistencia](./docs/auditoria-persistencia.md)
+- [Bitácora de análisis y cambios](./docs/bitacora.md)
+- [Pruebas de persistencia](./stub/01/tests/persistence.test.js)
